@@ -2,8 +2,8 @@ name: Build GStreamer
 
 on:
   push:
-    branches: ['*.*-lldc']
-    tags: ['*.*.*-lldc*']
+    # branches: ['*.*-lldc']
+    # tags: ['*.*.*-lldc*']
   pull_request:
   workflow_dispatch:
     inputs:
