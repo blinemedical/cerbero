@@ -162,11 +162,11 @@ runs:
         echo "cerbero-path=cerbero" >> $GITHUB_OUTPUT
 
     - if: ${{ steps.variables.outputs.do-build && inputs.bootstrap-system != 'false' }}
-      shell: powershell
+      shell: msys2 -eo pipefail {0}
       working-directory: ${{ steps.variables.outputs.cerbero-path }}
       run: |
         # Bootstrap Windows
-        .\tools\bootstrap-windows.ps1
+        powershell.exe ./tools/bootstrap-windows.ps1
 
     - id: cerbero-config
       if: ${{ steps.variables.outputs.do-build }}
