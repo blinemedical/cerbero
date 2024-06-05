@@ -70,6 +70,7 @@ runs:
         path-type: minimal
         release: false
         install: >-
+          git
           mingw-w64-ucrt-x86_64-jq
           m4
           mingw-w64-ucrt-x86_64-gcc-libs
