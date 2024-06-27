@@ -1104,11 +1104,11 @@ class Meson (Build, ModifyEnvBase) :
             if self.config.variants.werror and 'werror' not in self.meson_options:
                 self.meson_options['werror'] = 'true'
 
-            if self.config.variants.noasserts and 'glib-asserts' not in self.meson_options:
-                self.meson_options['glib-asserts'] = 'disabled'
+            if 'glib-asserts' not in self.meson_options:
+                self._set_option({'glib-asserts'}, 'asserts')
 
-            if self.config.variants.nochecks and 'glib-checks' not in self.meson_options:
-                self.meson_options['glib-checks'] = 'disabled'
+            if 'glib-checks' not in self.meson_options:
+                self._set_option({'glib-checks'}, 'checks')
 
         debug = 'true' if self.config.variants.debug else 'false'
         opt = get_optimization_from_config(self.config)
