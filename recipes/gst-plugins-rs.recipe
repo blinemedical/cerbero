@@ -82,6 +82,8 @@ class Recipe(recipe.Recipe):
     deps = ['gstreamer-1.0', 'gst-plugins-base-1.0', 'pango', 'cairo',
         'gst-plugins-bad-1.0', 'dav1d']
 
+    patches = ['gst-plugins-rs/0001-awss3sink-soft-seek.patch']
+
     def enable_plugin(self, name, category):
         if self.library_type in (LibraryType.SHARED, LibraryType.BOTH):
             attr = f'files_plugins_{category}'
