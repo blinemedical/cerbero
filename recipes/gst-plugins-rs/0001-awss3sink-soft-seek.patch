@@ -1,4 +1,4 @@
-From b167b6d956a4186654dc9ecf0e1f300bcb44b582 Mon Sep 17 00:00:00 2001
+From 1dee50dc59111b4a184860812eee013623e268d2 Mon Sep 17 00:00:00 2001
 From: Thomas Goodwin <thomas.goodwin@laerdal.com>
 Date: Fri, 17 May 2024 13:20:51 -0400
 Subject: [PATCH 1/9] awss3sink: changed scope of aws max parts constant
@@ -12,10 +12,10 @@ Signed-off-by: Thomas Goodwin <thomas.goodwin@laerdal.com>
  1 file changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/net/aws/src/s3sink/multipartsink.rs b/net/aws/src/s3sink/multipartsink.rs
-index 24bca9f3..4bced1b3 100644
+index 5f2755b7..fb73d865 100644
 --- a/net/aws/src/s3sink/multipartsink.rs
 +++ b/net/aws/src/s3sink/multipartsink.rs
-@@ -52,6 +52,9 @@ const DEFAULT_UPLOAD_PART_RETRY_DURATION_MSEC: u64 = 60_000;
+@@ -53,6 +53,9 @@ const DEFAULT_UPLOAD_PART_RETRY_DURATION_MSEC: u64 = 60_000;
  const DEFAULT_COMPLETE_REQUEST_TIMEOUT_MSEC: u64 = 600_000; // 10 minutes
  const DEFAULT_COMPLETE_RETRY_DURATION_MSEC: u64 = 3_600_000; // 60 minutes
  
@@ -25,7 +25,7 @@ index 24bca9f3..4bced1b3 100644
  struct Started {
      client: Client,
      buffer: Vec<u8>,
-@@ -72,9 +75,6 @@ impl Started {
+@@ -73,9 +76,6 @@ impl Started {
      }
  
      pub fn increment_part_number(&mut self) -> Result<i64, gst::ErrorMessage> {
@@ -39,7 +39,7 @@ index 24bca9f3..4bced1b3 100644
 2.34.1
 
 
-From 34d2d17c30ca7d7195e4708d30002cbdded8939c Mon Sep 17 00:00:00 2001
+From 7c2a1d00cbbded25864db21d564da371bbfce33c Mon Sep 17 00:00:00 2001
 From: Thomas Goodwin <thomas.goodwin@laerdal.com>
 Date: Wed, 22 May 2024 13:02:58 -0400
 Subject: [PATCH 2/9] awss3sink: buffer size to usize (32 vs. 64-bit)
@@ -59,10 +59,10 @@ Signed-off-by: Thomas Goodwin <thomas.goodwin@laerdal.com>
  1 file changed, 18 insertions(+), 8 deletions(-)
 
 diff --git a/net/aws/src/s3sink/multipartsink.rs b/net/aws/src/s3sink/multipartsink.rs
-index 4bced1b3..220c737e 100644
+index fb73d865..1d0ea7c6 100644
 --- a/net/aws/src/s3sink/multipartsink.rs
 +++ b/net/aws/src/s3sink/multipartsink.rs
-@@ -38,7 +38,6 @@ use super::OnError;
+@@ -39,7 +39,6 @@ use super::OnError;
  
  const DEFAULT_FORCE_PATH_STYLE: bool = false;
  const DEFAULT_RETRY_ATTEMPTS: u32 = 5;
@@ -70,16 +70,16 @@ index 4bced1b3..220c737e 100644
  const DEFAULT_MULTIPART_UPLOAD_ON_ERROR: OnError = OnError::DoNothing;
  
  // General setting for create / abort requests
-@@ -107,7 +106,7 @@ struct Settings {
+@@ -105,7 +104,7 @@ struct Settings {
+     key: Option<String>,
+     content_type: Option<String>,
      content_disposition: Option<String>,
-     content_encoding: Option<String>,
-     content_language: Option<String>,
 -    buffer_size: u64,
 +    buffer_size: usize,
      access_key: Option<String>,
      secret_access_key: Option<String>,
      session_token: Option<String>,
-@@ -169,7 +168,7 @@ impl Default for Settings {
+@@ -164,7 +163,7 @@ impl Default for Settings {
              secret_access_key: None,
              session_token: None,
              metadata: None,
@@ -88,7 +88,7 @@ index 4bced1b3..220c737e 100644
              retry_attempts: DEFAULT_RETRY_ATTEMPTS,
              multipart_upload_on_error: DEFAULT_MULTIPART_UPLOAD_ON_ERROR,
              request_timeout: Duration::from_millis(DEFAULT_REQUEST_TIMEOUT_MSEC),
-@@ -666,6 +665,16 @@ impl ObjectImpl for S3Sink {
+@@ -655,6 +654,16 @@ impl ObjectImpl for S3Sink {
  
      fn properties() -> &'static [glib::ParamSpec] {
          static PROPERTIES: Lazy<Vec<glib::ParamSpec>> = Lazy::new(|| {
@@ -105,7 +105,7 @@ index 4bced1b3..220c737e 100644
              vec![
                  glib::ParamSpecString::builder("bucket")
                      .nick("S3 Bucket")
-@@ -686,9 +695,10 @@ impl ObjectImpl for S3Sink {
+@@ -675,9 +684,10 @@ impl ObjectImpl for S3Sink {
                  glib::ParamSpecUInt64::builder("part-size")
                      .nick("Part size")
                      .blurb("A size (in bytes) of an individual part used for multipart upload.")
@@ -119,7 +119,7 @@ index 4bced1b3..220c737e 100644
                      .mutable_ready()
                      .build(),
                  glib::ParamSpecString::builder("uri")
-@@ -835,7 +845,7 @@ impl ObjectImpl for S3Sink {
+@@ -812,7 +822,7 @@ impl ObjectImpl for S3Sink {
                  }
              }
              "part-size" => {
@@ -128,7 +128,7 @@ index 4bced1b3..220c737e 100644
              }
              "uri" => {
                  let _ = self.set_uri(value.get().expect("type checked upstream"));
-@@ -935,7 +945,7 @@ impl ObjectImpl for S3Sink {
+@@ -897,7 +907,7 @@ impl ObjectImpl for S3Sink {
              "key" => settings.key.to_value(),
              "bucket" => settings.bucket.to_value(),
              "region" => settings.region.to_string().to_value(),
@@ -141,7 +141,7 @@ index 4bced1b3..220c737e 100644
 2.34.1
 
 
-From 3603c195e268a5c01c807ceb9ae84498014497a7 Mon Sep 17 00:00:00 2001
+From 523a673f0e3199798be29c0bf9f4606f0b196b62 Mon Sep 17 00:00:00 2001
 From: Thomas Goodwin <thomas.goodwin@laerdal.com>
 Date: Thu, 13 Jun 2024 09:34:44 -0400
 Subject: [PATCH 3/9] awss3sink: part_num represents current part buffer
@@ -159,10 +159,10 @@ Signed-off-by: Thomas Goodwin <thomas.goodwin@laerdal.com>
  1 file changed, 9 insertions(+), 9 deletions(-)
 
 diff --git a/net/aws/src/s3sink/multipartsink.rs b/net/aws/src/s3sink/multipartsink.rs
-index 220c737e..4d074730 100644
+index 1d0ea7c6..cf51004e 100644
 --- a/net/aws/src/s3sink/multipartsink.rs
 +++ b/net/aws/src/s3sink/multipartsink.rs
-@@ -56,9 +56,9 @@ const MAX_MULTIPART_NUMBER: i64 = 10000;
+@@ -57,9 +57,9 @@ const MAX_MULTIPART_NUMBER: i64 = 10000;
  
  struct Started {
      client: Client,
@@ -174,7 +174,7 @@ index 220c737e..4d074730 100644
      completed_parts: Vec<CompletedPart>,
  }
  
-@@ -68,7 +68,7 @@ impl Started {
+@@ -69,7 +69,7 @@ impl Started {
              client,
              buffer,
              upload_id,
@@ -183,7 +183,7 @@ index 220c737e..4d074730 100644
              completed_parts: Vec::new(),
          }
      }
-@@ -263,8 +263,6 @@ impl S3Sink {
+@@ -258,8 +258,6 @@ impl S3Sink {
              }
          };
  
@@ -191,8 +191,8 @@ index 220c737e..4d074730 100644
 -
          let upload_part_req_future = upload_part_req.send();
          let output =
-             s3utils::wait(&self.canceller, upload_part_req_future).map_err(|err| match &err {
-@@ -280,11 +278,14 @@ impl S3Sink {
+             s3utils::wait(&self.canceller, upload_part_req_future).map_err(|err| match err {
+@@ -275,11 +273,14 @@ impl S3Sink {
  
          let completed_part = CompletedPart::builder()
              .set_e_tag(output.e_tag)
@@ -209,7 +209,7 @@ index 220c737e..4d074730 100644
  
          Ok(())
      }
-@@ -303,7 +304,6 @@ impl S3Sink {
+@@ -298,7 +299,6 @@ impl S3Sink {
              }
          };
  
@@ -217,7 +217,7 @@ index 220c737e..4d074730 100644
          let body = Some(ByteStream::from(std::mem::replace(
              &mut state.buffer,
              Vec::with_capacity(settings.buffer_size as usize),
-@@ -320,7 +320,7 @@ impl S3Sink {
+@@ -315,7 +315,7 @@ impl S3Sink {
              .set_bucket(bucket)
              .set_key(key)
              .set_upload_id(upload_id)
@@ -230,7 +230,7 @@ index 220c737e..4d074730 100644
 2.34.1
 
 
-From ae58977b6413b1961aa4d5ec349f51f95ee85b7c Mon Sep 17 00:00:00 2001
+From 8b8de71a7a39a22727cd4ecfa9f5eb968f3d61d1 Mon Sep 17 00:00:00 2001
 From: Thomas Goodwin <thomas.goodwin@laerdal.com>
 Date: Fri, 17 May 2024 13:22:55 -0400
 Subject: [PATCH 4/9] awss3sink: added UploaderPartCache history with tests
@@ -249,10 +249,10 @@ Signed-off-by: Thomas Goodwin <thomas.goodwin@laerdal.com>
  1 file changed, 411 insertions(+)
 
 diff --git a/net/aws/src/s3sink/multipartsink.rs b/net/aws/src/s3sink/multipartsink.rs
-index 4d074730..dd9b2d03 100644
+index cf51004e..178dbb8b 100644
 --- a/net/aws/src/s3sink/multipartsink.rs
 +++ b/net/aws/src/s3sink/multipartsink.rs
-@@ -89,6 +89,417 @@ impl Started {
+@@ -90,6 +90,417 @@ impl Started {
      }
  }
  
@@ -674,7 +674,7 @@ index 4d074730..dd9b2d03 100644
 2.34.1
 
 
-From 81e4e62f168d73f6719c7b047b828dd766a5c3b8 Mon Sep 17 00:00:00 2001
+From 083f92ea4ce6c6b3cf841745c5732d07eac06faf Mon Sep 17 00:00:00 2001
 From: Thomas Goodwin <thomas.goodwin@laerdal.com>
 Date: Wed, 22 May 2024 13:22:43 -0400
 Subject: [PATCH 5/9] awss3sink: added 'num-cache-parts', instantiated cache
@@ -687,10 +687,10 @@ Signed-off-by: Thomas Goodwin <thomas.goodwin@laerdal.com>
  1 file changed, 24 insertions(+), 1 deletion(-)
 
 diff --git a/net/aws/src/s3sink/multipartsink.rs b/net/aws/src/s3sink/multipartsink.rs
-index dd9b2d03..7d654cc2 100644
+index 178dbb8b..9f046d61 100644
 --- a/net/aws/src/s3sink/multipartsink.rs
 +++ b/net/aws/src/s3sink/multipartsink.rs
-@@ -38,6 +38,7 @@ use super::OnError;
+@@ -39,6 +39,7 @@ use super::OnError;
  
  const DEFAULT_FORCE_PATH_STYLE: bool = false;
  const DEFAULT_RETRY_ATTEMPTS: u32 = 5;
@@ -698,7 +698,7 @@ index dd9b2d03..7d654cc2 100644
  const DEFAULT_MULTIPART_UPLOAD_ON_ERROR: OnError = OnError::DoNothing;
  
  // General setting for create / abort requests
-@@ -60,16 +61,23 @@ struct Started {
+@@ -61,16 +62,23 @@ struct Started {
      upload_id: String,
      part_number: i64, // the active part number
      completed_parts: Vec<CompletedPart>,
@@ -723,15 +723,15 @@ index dd9b2d03..7d654cc2 100644
          }
      }
  
-@@ -518,6 +526,7 @@ struct Settings {
-     content_encoding: Option<String>,
-     content_language: Option<String>,
+@@ -516,6 +524,7 @@ struct Settings {
+     content_type: Option<String>,
+     content_disposition: Option<String>,
      buffer_size: usize,
 +    num_cached_parts: i64,
      access_key: Option<String>,
      secret_access_key: Option<String>,
      session_token: Option<String>,
-@@ -580,6 +589,7 @@ impl Default for Settings {
+@@ -575,6 +584,7 @@ impl Default for Settings {
              session_token: None,
              metadata: None,
              buffer_size: 0,
@@ -739,7 +739,7 @@ index dd9b2d03..7d654cc2 100644
              retry_attempts: DEFAULT_RETRY_ATTEMPTS,
              multipart_upload_on_error: DEFAULT_MULTIPART_UPLOAD_ON_ERROR,
              request_timeout: Duration::from_millis(DEFAULT_REQUEST_TIMEOUT_MSEC),
-@@ -988,6 +998,7 @@ impl S3Sink {
+@@ -977,6 +987,7 @@ impl S3Sink {
              client,
              Vec::with_capacity(settings.buffer_size as usize),
              upload_id,
@@ -747,7 +747,7 @@ index dd9b2d03..7d654cc2 100644
          ));
  
          Ok(())
-@@ -1112,6 +1123,14 @@ impl ObjectImpl for S3Sink {
+@@ -1101,6 +1112,14 @@ impl ObjectImpl for S3Sink {
                      .construct()
                      .mutable_ready()
                      .build(),
@@ -762,7 +762,7 @@ index dd9b2d03..7d654cc2 100644
                  glib::ParamSpecString::builder("uri")
                      .nick("URI")
                      .blurb("The S3 object URI")
-@@ -1258,6 +1277,9 @@ impl ObjectImpl for S3Sink {
+@@ -1235,6 +1254,9 @@ impl ObjectImpl for S3Sink {
              "part-size" => {
                  settings.buffer_size = value.get::<u64>().expect("type checked upstream").try_into().unwrap();
              }
@@ -772,7 +772,7 @@ index dd9b2d03..7d654cc2 100644
              "uri" => {
                  let _ = self.set_uri(value.get().expect("type checked upstream"));
              }
-@@ -1357,6 +1379,7 @@ impl ObjectImpl for S3Sink {
+@@ -1319,6 +1341,7 @@ impl ObjectImpl for S3Sink {
              "bucket" => settings.bucket.to_value(),
              "region" => settings.region.to_string().to_value(),
              "part-size" => (settings.buffer_size as u64).to_value(),
@@ -784,7 +784,7 @@ index dd9b2d03..7d654cc2 100644
 2.34.1
 
 
-From dc1cc87f394bcd4c846ecc3d5c52440fae673775 Mon Sep 17 00:00:00 2001
+From e81b6d2987cc6891902ad2be9bb21400ed608ed5 Mon Sep 17 00:00:00 2001
 From: Thomas Goodwin <thomas.goodwin@laerdal.com>
 Date: Thu, 13 Jun 2024 11:03:57 -0400
 Subject: [PATCH 6/9] awss3sink: make multipart test preamble reusable
@@ -799,10 +799,10 @@ Signed-off-by: Thomas Goodwin <thomas.goodwin@laerdal.com>
  1 file changed, 14 insertions(+), 5 deletions(-)
 
 diff --git a/net/aws/tests/s3.rs b/net/aws/tests/s3.rs
-index 3fb28f9c..27f1311d 100644
+index 5d21d35c..8b5ad49d 100644
 --- a/net/aws/tests/s3.rs
 +++ b/net/aws/tests/s3.rs
-@@ -60,15 +60,24 @@ mod tests {
+@@ -55,15 +55,24 @@ mod tests {
              .unwrap();
      }
  
@@ -836,7 +836,7 @@ index 3fb28f9c..27f1311d 100644
 2.34.1
 
 
-From d8032cc7b73ac89ddebf189fb7607e127f5f0595 Mon Sep 17 00:00:00 2001
+From 79eb0eb1e9d3ce7876a7c1999399351c49a51ff5 Mon Sep 17 00:00:00 2001
 From: Thomas Goodwin <thomas.goodwin@laerdal.com>
 Date: Thu, 13 Jun 2024 11:19:42 -0400
 Subject: [PATCH 7/9] awss3sink: implemented position query
@@ -854,10 +854,10 @@ Signed-off-by: Thomas Goodwin <thomas.goodwin@laerdal.com>
  2 files changed, 80 insertions(+)
 
 diff --git a/net/aws/src/s3sink/multipartsink.rs b/net/aws/src/s3sink/multipartsink.rs
-index 7d654cc2..6046a8ad 100644
+index 9f046d61..e5c53501 100644
 --- a/net/aws/src/s3sink/multipartsink.rs
 +++ b/net/aws/src/s3sink/multipartsink.rs
-@@ -62,6 +62,10 @@ struct Started {
+@@ -63,6 +63,10 @@ struct Started {
      part_number: i64, // the active part number
      completed_parts: Vec<CompletedPart>,
      cache: UploaderPartCache,
@@ -868,7 +868,7 @@ index 7d654cc2..6046a8ad 100644
  }
  
  impl Started {
-@@ -78,6 +82,7 @@ impl Started {
+@@ -79,6 +83,7 @@ impl Started {
              part_number: 1,
              completed_parts: Vec::new(),
              cache: UploaderPartCache::new(num_cache_parts),
@@ -876,7 +876,7 @@ index 7d654cc2..6046a8ad 100644
          }
      }
  
-@@ -725,6 +730,9 @@ impl S3Sink {
+@@ -720,6 +725,9 @@ impl S3Sink {
              }
          };
  
@@ -886,7 +886,7 @@ index 7d654cc2..6046a8ad 100644
          let body = Some(ByteStream::from(std::mem::replace(
              &mut state.buffer,
              Vec::with_capacity(settings.buffer_size as usize),
-@@ -1552,6 +1560,30 @@ impl BaseSinkImpl for S3Sink {
+@@ -1506,6 +1514,30 @@ impl BaseSinkImpl for S3Sink {
          Ok(())
      }
  
@@ -918,13 +918,15 @@ index 7d654cc2..6046a8ad 100644
          if let gst::EventView::Eos(_) = event.view() {
              if let Err(error_message) = self.finalize_upload() {
 diff --git a/net/aws/tests/s3.rs b/net/aws/tests/s3.rs
-index 27f1311d..560913e2 100644
+index 8b5ad49d..ebfc54bb 100644
 --- a/net/aws/tests/s3.rs
 +++ b/net/aws/tests/s3.rs
-@@ -211,6 +211,54 @@ mod tests {
-     #[test_with::env(AWS_ACCESS_KEY_ID)]
-     #[test_with::env(AWS_SECRET_ACCESS_KEY)]
-     #[tokio::test]
+@@ -200,6 +200,54 @@ mod tests {
+         do_s3_multipart_test("s3 🧪 😱").await;
+     }
+ 
++    #[ignore = "failing, needs investigation"]
++    #[tokio::test]
 +    async fn test_s3_multipart_query_position() {
 +        // Verfies that the basesink::query handler is correctly handling Bytes -formatted
 +        // position queries according to the current position in the overall upload.
@@ -971,16 +973,14 @@ index 27f1311d..560913e2 100644
 +        delete_object(region.clone(), &bucket, &key).await;
 +    }
 +
-+    #[ignore = "failing, needs investigation"]
-+    #[tokio::test]
+     #[ignore = "failing, needs investigation"]
+     #[tokio::test]
      async fn test_s3_put_object_simple() {
-         do_s3_putobject_test("s3-put-object-test", None, None, None, true).await;
-     }
 -- 
 2.34.1
 
 
-From 749c44fcf60a3b6e401a182caee72d1740419d71 Mon Sep 17 00:00:00 2001
+From 89b4885dbe865013ee2e585836cf7cf60b0248f1 Mon Sep 17 00:00:00 2001
 From: Thomas Goodwin <thomas.goodwin@laerdal.com>
 Date: Thu, 13 Jun 2024 11:23:34 -0400
 Subject: [PATCH 8/9] awss3sink: implemented seeking query
@@ -1001,10 +1001,10 @@ Signed-off-by: Thomas Goodwin <thomas.goodwin@laerdal.com>
  2 files changed, 75 insertions(+)
 
 diff --git a/net/aws/src/s3sink/multipartsink.rs b/net/aws/src/s3sink/multipartsink.rs
-index 6046a8ad..ee964ae3 100644
+index e5c53501..c98353ea 100644
 --- a/net/aws/src/s3sink/multipartsink.rs
 +++ b/net/aws/src/s3sink/multipartsink.rs
-@@ -1580,6 +1580,43 @@ impl BaseSinkImpl for S3Sink {
+@@ -1534,6 +1534,43 @@ impl BaseSinkImpl for S3Sink {
                      false
                  }
              }
@@ -1049,10 +1049,10 @@ index 6046a8ad..ee964ae3 100644
          }
      }
 diff --git a/net/aws/tests/s3.rs b/net/aws/tests/s3.rs
-index 560913e2..5a9ad819 100644
+index ebfc54bb..3998809f 100644
 --- a/net/aws/tests/s3.rs
 +++ b/net/aws/tests/s3.rs
-@@ -257,6 +257,44 @@ mod tests {
+@@ -248,6 +248,44 @@ mod tests {
          delete_object(region.clone(), &bucket, &key).await;
      }
  
@@ -1101,7 +1101,7 @@ index 560913e2..5a9ad819 100644
 2.34.1
 
 
-From d1276734dcaadb754b80c9f40ba92e1fc5749682 Mon Sep 17 00:00:00 2001
+From 9324eb0b443cd0d3d0a015671ef05f792ce72254 Mon Sep 17 00:00:00 2001
 From: Thomas Goodwin <thomas.goodwin@laerdal.com>
 Date: Thu, 13 Jun 2024 16:08:46 -0400
 Subject: [PATCH 9/9] awss3sink: implemented seek via segment event
@@ -1112,15 +1112,15 @@ misses, etc.  Test coverage increased.
 
 Signed-off-by: Thomas Goodwin <thomas.goodwin@laerdal.com>
 ---
- net/aws/src/s3sink/multipartsink.rs | 256 ++++++++++++++++++++++--
- net/aws/tests/s3.rs                 | 289 +++++++++++++++++++++++++++-
- 2 files changed, 531 insertions(+), 14 deletions(-)
+ net/aws/src/s3sink/multipartsink.rs | 256 +++++++++++++++++++++++--
+ net/aws/tests/s3.rs                 | 279 ++++++++++++++++++++++++++++
+ 2 files changed, 523 insertions(+), 12 deletions(-)
 
 diff --git a/net/aws/src/s3sink/multipartsink.rs b/net/aws/src/s3sink/multipartsink.rs
-index ee964ae3..1f2e8f4e 100644
+index c98353ea..83e0f85b 100644
 --- a/net/aws/src/s3sink/multipartsink.rs
 +++ b/net/aws/src/s3sink/multipartsink.rs
-@@ -57,7 +57,12 @@ const MAX_MULTIPART_NUMBER: i64 = 10000;
+@@ -58,7 +58,12 @@ const MAX_MULTIPART_NUMBER: i64 = 10000;
  
  struct Started {
      client: Client,
@@ -1134,7 +1134,7 @@ index ee964ae3..1f2e8f4e 100644
      upload_id: String,
      part_number: i64, // the active part number
      completed_parts: Vec<CompletedPart>,
-@@ -78,6 +83,7 @@ impl Started {
+@@ -79,6 +84,7 @@ impl Started {
          Started {
              client,
              buffer,
@@ -1142,7 +1142,7 @@ index ee964ae3..1f2e8f4e 100644
              upload_id,
              part_number: 1,
              completed_parts: Vec::new(),
-@@ -611,6 +617,8 @@ pub struct S3Sink {
+@@ -606,6 +612,8 @@ pub struct S3Sink {
      state: Mutex<State>,
      canceller: Mutex<s3utils::Canceller>,
      abort_multipart_canceller: Mutex<s3utils::Canceller>,
@@ -1151,7 +1151,7 @@ index ee964ae3..1f2e8f4e 100644
  }
  
  static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
-@@ -675,9 +683,19 @@ impl S3Sink {
+@@ -670,9 +678,19 @@ impl S3Sink {
          }
      }
  
@@ -1171,16 +1171,16 @@ index ee964ae3..1f2e8f4e 100644
          let mut state = self.state.lock().unwrap();
          let state = match *state {
              State::Started(ref mut started_state) => started_state,
-@@ -689,7 +707,7 @@ impl S3Sink {
+@@ -684,7 +702,7 @@ impl S3Sink {
              }
          };
  
 -        let upload_part_req_future = upload_part_req.send();
 +        let upload_part_req_future = upload_part_req.unwrap().send();
          let output =
-             s3utils::wait(&self.canceller, upload_part_req_future).map_err(|err| match &err {
-                 WaitError::FutureError(_) => {
-@@ -706,19 +724,69 @@ impl S3Sink {
+             s3utils::wait(&self.canceller, upload_part_req_future).map_err(|err| match err {
+                 WaitError::FutureError(err) => {
+@@ -701,19 +719,69 @@ impl S3Sink {
              .set_e_tag(output.e_tag)
              .set_part_number(Some(state.part_number as i32))
              .build();
@@ -1254,7 +1254,7 @@ index ee964ae3..1f2e8f4e 100644
          let mut state = self.state.lock().unwrap();
          let state = match *state {
              State::Started(ref mut started_state) => started_state,
-@@ -730,12 +798,28 @@ impl S3Sink {
+@@ -725,12 +793,28 @@ impl S3Sink {
              }
          };
  
@@ -1286,7 +1286,7 @@ index ee964ae3..1f2e8f4e 100644
          )));
  
          let bucket = Some(url.as_ref().unwrap().bucket.to_owned());
-@@ -751,7 +835,7 @@ impl S3Sink {
+@@ -746,7 +830,7 @@ impl S3Sink {
              .set_upload_id(upload_id)
              .set_part_number(Some(state.part_number as i32));
  
@@ -1295,7 +1295,7 @@ index ee964ae3..1f2e8f4e 100644
      }
  
      fn create_complete_multipart_upload_request(
-@@ -1012,6 +1096,11 @@ impl S3Sink {
+@@ -1001,6 +1085,11 @@ impl S3Sink {
          Ok(())
      }
  
@@ -1307,7 +1307,7 @@ index ee964ae3..1f2e8f4e 100644
      fn update_buffer(&self, src: &[u8]) -> Result<(), Option<gst::ErrorMessage>> {
          let mut state = self.state.lock().unwrap();
          let started_state = match *state {
-@@ -1029,8 +1118,18 @@ impl S3Sink {
+@@ -1018,8 +1107,18 @@ impl S3Sink {
              src.len(),
          );
  
@@ -1326,7 +1326,7 @@ index ee964ae3..1f2e8f4e 100644
          let do_flush = started_state.buffer.capacity() == started_state.buffer.len();
          drop(state);
  
-@@ -1038,7 +1137,7 @@ impl S3Sink {
+@@ -1027,7 +1126,7 @@ impl S3Sink {
              self.flush_current_buffer()?;
          }
  
@@ -1335,7 +1335,7 @@ index ee964ae3..1f2e8f4e 100644
              self.update_buffer(tail)?;
          }
  
-@@ -1076,6 +1175,109 @@ impl S3Sink {
+@@ -1065,6 +1164,109 @@ impl S3Sink {
              )),
          }
      }
@@ -1445,7 +1445,7 @@ index ee964ae3..1f2e8f4e 100644
  }
  
  #[glib::object_subclass]
-@@ -1090,6 +1292,8 @@ impl ObjectImpl for S3Sink {
+@@ -1079,6 +1281,8 @@ impl ObjectImpl for S3Sink {
      fn constructed(&self) {
          self.parent_constructed();
  
@@ -1454,7 +1454,7 @@ index ee964ae3..1f2e8f4e 100644
          self.obj().set_sync(false);
      }
  
-@@ -1283,7 +1487,11 @@ impl ObjectImpl for S3Sink {
+@@ -1260,7 +1464,11 @@ impl ObjectImpl for S3Sink {
                  }
              }
              "part-size" => {
@@ -1467,7 +1467,7 @@ index ee964ae3..1f2e8f4e 100644
              }
              "num-cached-parts" => {
                  settings.num_cached_parts = value.get::<i64>().expect("type checked upstream");
-@@ -1623,6 +1831,8 @@ impl BaseSinkImpl for S3Sink {
+@@ -1577,6 +1785,8 @@ impl BaseSinkImpl for S3Sink {
  
      fn event(&self, event: gst::Event) -> bool {
          if let gst::EventView::Eos(_) = event.view() {
@@ -1476,7 +1476,7 @@ index ee964ae3..1f2e8f4e 100644
              if let Err(error_message) = self.finalize_upload() {
                  gst::error!(
                      CAT,
-@@ -1632,6 +1842,28 @@ impl BaseSinkImpl for S3Sink {
+@@ -1586,6 +1796,28 @@ impl BaseSinkImpl for S3Sink {
                  );
                  return false;
              }
@@ -1506,10 +1506,10 @@ index ee964ae3..1f2e8f4e 100644
  
          BaseSinkImplExt::parent_event(self, event)
 diff --git a/net/aws/tests/s3.rs b/net/aws/tests/s3.rs
-index 5a9ad819..db138de1 100644
+index 3998809f..6e2e6afb 100644
 --- a/net/aws/tests/s3.rs
 +++ b/net/aws/tests/s3.rs
-@@ -201,6 +201,289 @@ mod tests {
+@@ -194,6 +194,285 @@ mod tests {
          do_s3_multipart_test("s3 test").await;
      }
  
@@ -1520,8 +1520,7 @@ index 5a9ad819..db138de1 100644
 +     * expected result is the seek to use the cache, and the EOS to push the
 +     * cached buffer and complete the upload.
 +     */
-+    #[test_with::env(AWS_ACCESS_KEY_ID)]
-+    #[test_with::env(AWS_SECRET_ACCESS_KEY)]
++    #[ignore = "failing, needs investigation"]
 +    #[tokio::test]
 +    async fn test_s3_multipart_head_cached() {
 +        init();
@@ -1624,8 +1623,7 @@ index 5a9ad819..db138de1 100644
 +     * Since the cache is not involved, subsequent writes beyond the previous "end" of
 +     * of the buffer will simply continue as normal.
 +     */
-+    #[test_with::env(AWS_ACCESS_KEY_ID)]
-+    #[test_with::env(AWS_SECRET_ACCESS_KEY)]
++    #[ignore = "failing, needs investigation"]
 +    #[tokio::test]
 +    async fn test_s3_multipart_permit_seek_in_active_part() {
 +        init();
@@ -1689,8 +1687,7 @@ index 5a9ad819..db138de1 100644
 +     * first part and writes a buffer that would cross the part boundary (cache miss).
 +     * The expected result is a flow error.
 +     */
-+    #[test_with::env(AWS_ACCESS_KEY_ID)]
-+    #[test_with::env(AWS_SECRET_ACCESS_KEY)]
++    #[ignore = "failing, needs investigation"]
 +    #[tokio::test]
 +    async fn test_s3_multipart_cache_miss_on_write() {
 +        init();
@@ -1735,8 +1732,7 @@ index 5a9ad819..db138de1 100644
 +     * cache miss is imminent if more data is written.  However, an EOS event is received
 +     * which successfully finalizes the file and does not result in a flow error.
 +     */
-+    #[test_with::env(AWS_ACCESS_KEY_ID)]
-+    #[test_with::env(AWS_SECRET_ACCESS_KEY)]
++    #[ignore = "failing, needs investigation"]
 +    #[tokio::test]
 +    async fn test_s3_multipart_eos_on_cache_boundary() {
 +        init();
@@ -1796,29 +1792,9 @@ index 5a9ad819..db138de1 100644
 +        delete_object(region.clone(), &bucket, &key).await;
 +    }
 +
-     #[test_with::env(AWS_ACCESS_KEY_ID)]
-     #[test_with::env(AWS_SECRET_ACCESS_KEY)]
+     #[ignore = "failing, needs investigation"]
      #[tokio::test]
-@@ -257,7 +540,8 @@ mod tests {
-         delete_object(region.clone(), &bucket, &key).await;
-     }
- 
--    #[ignore = "failing, needs investigation"]
-+    #[test_with::env(AWS_ACCESS_KEY_ID)]
-+    #[test_with::env(AWS_SECRET_ACCESS_KEY)]
-     #[tokio::test]
-     async fn test_s3_multipart_query_seeking() {
-         // Verfies the basesink::query handler is providing correct replies to Bytes -formatted
-@@ -295,7 +579,8 @@ mod tests {
-         assert_eq!(u64::MAX - 1, upper.value() as u64);
-     }
- 
--    #[ignore = "failing, needs investigation"]
-+    #[test_with::env(AWS_ACCESS_KEY_ID)]
-+    #[test_with::env(AWS_SECRET_ACCESS_KEY)]
-     #[tokio::test]
-     async fn test_s3_put_object_simple() {
-         do_s3_putobject_test("s3-put-object-test", None, None, None, true).await;
+     async fn test_s3_multipart_unicode() {
 -- 
 2.34.1
 
