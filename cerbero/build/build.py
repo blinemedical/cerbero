@@ -1342,7 +1342,7 @@ class CargoC(Cargo):
 
     def get_cargoc_args(self):
         cargoc_args = [
-            '--release', '--frozen',
+            '--release',
             '--prefix', self.config.prefix,
             '--libdir', self.config.libdir,
         ]
