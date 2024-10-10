@@ -13,7 +13,7 @@ class Recipe(recipe.Recipe):
     licenses = [{License.MIT: ['COPYING']}]
     btype = BuildType.MESON
     meson_options = {'doc': 'disabled', 'tests': 'disabled', 'tools': 'disabled'}
-    deps = ['expat', 'freetype', 'zlib', 'bzip2']
+    deps = ['expat', 'freetype', 'zlib', 'bzip2', 'gperf']
     patches = [
         # Proper fix is pending, upstream issue is:
         # https://gitlab.freedesktop.org/fontconfig/fontconfig/-/issues/247
