@@ -13,7 +13,6 @@ class Recipe(recipe.Recipe):
 
     btype = BuildType.CMAKE
     configure_options = '-DWAVPACK_INSTALL_CMAKE_MODULE=OFF \
-        -DCMAKE_DISABLE_FIND_PACKAGE_OpenSSL=TRUE \
         -DWAVPACK_ENABLE_LIBCRYPTO=OFF \
         -DWAVPACK_INSTALL_DOCS=OFF \
         -DWAVPACK_BUILD_DOCS=OFF \
