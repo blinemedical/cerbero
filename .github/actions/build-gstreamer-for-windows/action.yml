@@ -38,7 +38,7 @@ inputs:
   gst-plugins-rs-ref:
     description: 'Ref/tag to use for gst-plugins-rs'
     required: false
-    default: 'gstreamer-1.24.8'
+    default: '0.12-lldc'
   force:
     description: 'Whether to force the build'
     required: false
