@@ -1293,10 +1293,10 @@ class Cargo(Build, ModifyEnvBase):
 
         # TODO: Ideally we should strip while packaging, not while linking
         if self.rustc_debuginfo == 'strip':
-            s = '\n[profile.release]\nstrip = "debuginfo"\n'
+            s = '\n[profile.release]\nstrip = "debuginfo"\ndebug=true\n'
             self.append_config_toml(s)
         else:
-            s = '\n[profile.release]\nsplit-debuginfo = "packed"\n'
+            s = '\n[profile.release]\nsplit-debuginfo = "packed"\ndebug=true\n'
             self.append_config_toml(s)
 
         if self.config.target_platform == Platform.ANDROID:
