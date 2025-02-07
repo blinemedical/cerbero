@@ -13,14 +13,6 @@ on:
       cerbero-ref:
         description: 'Cerbero ref to use (defaults to the current ref)'
         required: false
-      runner:
-        description: 'Runner labels to use'
-        required: false
-        type: choice
-        options:
-          - '["floor-to-ceiling-windows-latest-runner"]'
-          - '["self-hosted", "Windows", "X64", "cerbero"]'
-        default: '["self-hosted", "Windows", "X64", "cerbero"]'
       force-build:
         description: 'Force the build'
         required: false
@@ -34,8 +26,8 @@ on:
 
 jobs:
   build:
-    name: Build GStreamer Windows - ${{ (contains(inputs.runner, 'self-hosted') || inputs.runner == '') && 'Self-hosted' || 'GitHub-hosted' }}
-    runs-on: ${{ fromJSON(inputs.runner || '["self-hosted", "Windows", "X64", "cerbero"]') }}
+    name: Build GStreamer Windows
+    runs-on: windows-2022
     steps:
       - name: Get GStreamer installer S3 prefix
         id: s3-prefix
