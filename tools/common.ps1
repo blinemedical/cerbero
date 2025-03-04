@@ -10,6 +10,9 @@ function Get-MSYS2 {
   if (Test-Path "D:\msys64") {
     return "D:\msys64"
   }
+  if ($msys2 = (Get-Command "msys2.exe" -ErrorAction SilentlyContinue).Source) {
+    return Split-Path $msys2 -Parent
+  }
 
   $Shortcuts = Get-ChildItem -Recurse "$env:AppData\Microsoft\Windows\Start Menu" -Include *.lnk
   $Shell = New-Object -ComObject WScript.Shell
