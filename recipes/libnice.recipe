@@ -18,7 +18,6 @@ class Recipe(recipe.Recipe):
     deps = ['glib', 'gstreamer-1.0']
 
     patches = [
-        'libnice/0001-Remove-Gslice-without-breaking-anything.patch',
         'libnice/0002-Add-glib-assert-and-check-options.patch',
     ]
 
