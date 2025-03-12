@@ -79,3 +79,7 @@ class Recipe(custom.GStreamer):
            not Platform.is_mobile(self.config.target_platform):
             self.meson_options['ptp-helper'] = 'enabled'
             self.files_misc.append('libexec/gstreamer-1.0/gst-ptp-helper%(bext)s')
+
+        # If package origin is specified, set it on the meson meson_options
+        if self.config.package_origin:
+            self.meson_options['package-origin'] = self.config.package_origin
