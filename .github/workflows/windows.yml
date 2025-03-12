@@ -68,7 +68,7 @@ jobs:
         with:
           cerbero-repo: ${{ inputs.cerbero-repo || github.repository }}
           cerbero-ref: ${{ inputs.cerbero-ref || github.ref }}
-          cerbero-args: --clocktime --timestamps -v visualstudio,noasserts,nochecks
+          cerbero-args: --clocktime --timestamps -v visualstudio,noassert,nochecks
           gst-plugins-rs-repo: 'https://github.com/blinemedical/gst-plugins-rs'
           gst-plugins-rs-ref: '0.12.11-lldc.1'
           force: ${{ inputs.force-build == true }}
