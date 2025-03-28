@@ -1,0 +1,64 @@
+name: (DEPRECATED) Build GStreamer with Cerbero on Windows
+description: Please use the setup GStreamer action located at blinemedical/cerbero/.github/actions/setup-gstreamer@1.24-lldc instead
+inputs:
+  cerbero-repo:
+    description: 'Repository to use for Cerbero'
+    required: false
+    default: ${{ github.action_repository || github.repository }}
+  cerbero-ref:
+    description: 'Ref to use for Cerbero'
+    required: false
+    default: ${{ github.action_ref || github.ref }}
+  config:
+    description: 'Name of the configuration file to use'
+    required: false
+    default: 'win64.cbc'
+  cerbero-args:
+    description: 'Additional args to pass to Cerbero'
+    required: false
+    default: '--clocktime --timestamps -v visualstudio'
+  cerbero-package-args:
+    description: 'Additional args to pass to Cerbero package'
+    required: false
+    default: ''
+  bootstrap-system:
+    description: 'Whether to bootstrap the system'
+    required: false
+    default: 'false'
+  s3-download-paths:
+    description: 'S3 paths to download from'
+    required: false
+  s3-upload-path:
+    description: 'S3 path to upload to'
+    required: false
+  gst-plugins-rs-repo:
+    description: 'Repository to use for gst-plugins-rs'
+    required: false
+  gst-plugins-rs-ref:
+    description: 'Ref/tag to use for gst-plugins-rs'
+    required: false
+  force:
+    description: 'Whether to force the build'
+    required: false
+  cleanup:
+    description: 'Whether to clean the Cerbero build directory'
+    required: false
+    default: 'true'
+  no-cache:
+    description: 'Whether to disable restoring from cache'
+    required: false
+    default: 'false'
+outputs:
+  gstreamer-version:
+    description: 'GStreamer version'
+    value: ${{ steps.setup-gstreamer.outputs.gstreamer-version }}
+  cerbero-short-sha:
+    description: 'Short SHA of the Cerbero checkout'
+    value: ${{ steps.setup-gstreamer.outputs.cerbero-short-sha }}
+runs:
+  using: "composite"
+  steps:
+    - shell: bash
+      run:
+        echo "::error title=Deprecation Notice::This action has been moved, please use the setup GStreamer action located at blinemedical/cerbero/.github/actions/setup-gstreamer@1.24-lldc instead."
+        exit 1
