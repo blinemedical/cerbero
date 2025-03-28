@@ -155,7 +155,7 @@ runs:
     - id: build-packages
       if: ${{ !steps.check-installer-exists.outputs.runtime-path || !steps.check-installer-exists.outputs.dev-path }}
       name: Build GStreamer with Cerbero on Windows
-      uses: ./.github/actions/build-gstreamer
+      uses: blinemedical/cerbero/.github/actions/build-gstreamer@1.24-lldc
       with:
         config: ${{ inputs.config }}
         cerbero-args: ${{ inputs.cerbero-args }}
@@ -202,7 +202,7 @@ runs:
       # Install the gstreamer MSIs
     - id: install
       name: Install GStreamer on Windows
-      uses: ./.github/actions/install-gstreamer
+      uses: blinemedical/cerbero/.github/actions/install-gstreamer@1.24-lldc
       with:
         runtime-installer-path: ${{ steps.select-path.outputs.runtime-installer-path }}
         development-installer-path: ${{ steps.select-path.outputs.development-installer-path }}
