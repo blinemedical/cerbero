@@ -59,13 +59,20 @@ outputs:
 runs:
   using: "composite"
   steps:
+    - name: Python >= 3.10
+      uses: actions/setup-python@v5
+      with:
+        # cerbero requires >=3.10
+        python-version: '>=3.10'
 
-    - id: setup-msys2
+    - if: runner.os == 'Windows'
+      id: setup-msys2
       uses: msys2/setup-msys2@v2
       with:
         msystem: UCRT64
         path-type: inherit
         release: false
+        cache:     ${{ inputs.no-cache != 'true' }}
         install: >-
           mingw-w64-ucrt-x86_64-jq
           m4
@@ -75,12 +82,23 @@ runs:
           mingw-w64-ucrt-x86_64-diffutils
           flex
           mingw-w64-ucrt-x86_64-gperf
-          mingw-w64-ucrt-x86_64-make
+          mingw-w64-ucrt-x86_64-autotools
           mingw-w64-ucrt-x86_64-ninja
           mingw-w64-ucrt-x86_64-perl
 
-    - shell: msys2 -eo pipefail {0}
+    - if: runner.os == 'Windows'
+      shell: msys2 -eo pipefail {0}
+      name: Additional Windows Configuration (MSYS2)
       run: git config --global core.autocrlf false
+
+    - if: runner.os == 'Windows'
+      name: Additional Windows Configuration (powershell)
+      shell: powershell
+      run: |
+        New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+        Add-Content "C:\msys64\ucrt64.ini" "`nCHERE_INVOKING=1"
+        Add-Content "C:\msys64\ucrt64.ini" "`nMSYS2_NOSTART=yes"
+        Add-Content "C:\msys64\ucrt64.ini" "`nMSYS=winsymlinks:nativestrict"
 
     - id: get-cerbero
       name: Get Cerbero
@@ -90,8 +108,18 @@ runs:
         path: cerbero
         ref: ${{ inputs.cerbero-ref }}
 
+    - name: Run Bootstrap
+      shell: ${{ runner.os == 'Windows' && 'msys2 -eo pipefail {0}' || 'bash' }}
+      working-directory: cerbero
+      run: |
+        if [ "${{ runner.os }}" == "Windows" ]; then
+          powershell.exe ./tools/bootstrap-windows.ps1
+        else
+          ./tools/bootstrap-debian.sh
+        fi
+
     - id: version-info
-      shell: msys2 -eo pipefail {0}
+      shell: ${{ runner.os == 'Windows' && 'msys2 -eo pipefail {0}' || 'bash' }}
       working-directory: cerbero
       run: |
         # Get GStreamer/cerbero version info and installer filenames
@@ -101,22 +129,24 @@ runs:
         cerbero_short_sha=$(git -C cerbero rev-parse --short HEAD)
         echo "cerbero-short-sha=${cerbero_short_sha}" | tee -a $GITHUB_OUTPUT
 
-        echo "runtime-msi-filename=gstreamer-1.0-msvc-x86_64-${gstreamer_version}-${cerbero_short_sha}.msi" | tee -a $GITHUB_OUTPUT
-        echo "dev-msi-filename=gstreamer-1.0-devel-msvc-x86_64-${gstreamer_version}-${cerbero_short_sha}.msi" | tee -a $GITHUB_OUTPUT
+        if [ "${{ runner.os }}" == "Windows" ]; then
+          echo "runtime-filename=gstreamer-1.0-msvc-x86_64-${gstreamer_version}-${cerbero_short_sha}.msi" | tee -a $GITHUB_OUTPUT
+          echo "dev-filename=gstreamer-1.0-devel-msvc-x86_64-${gstreamer_version}-${cerbero_short_sha}.msi" | tee -a $GITHUB_OUTPUT
+        fi
 
     - id: check-installer-exists
       if: ${{ inputs.force != 'true' && inputs.s3-download-paths }}
-      shell: msys2 -eo pipefail {0}
+      shell: ${{ runner.os == 'Windows' && 'msys2 -eo pipefail {0}' || 'bash' }}
       continue-on-error: true
       env:
         S3_DOWNLOAD_PATHS: ${{ inputs.s3-download-paths }}
-        RUNTIME_MSI_FILENAME: ${{ steps.version-info.outputs.runtime-msi-filename }}
-        DEV_MSI_FILENAME: ${{ steps.version-info.outputs.dev-msi-filename }}
+        RUNTIME_FILENAME: ${{ steps.version-info.outputs.runtime-filename }}
+        DEV_FILENAME: ${{ steps.version-info.outputs.dev-filename }}
       run: |
         # Check installer already exists in S3
 
-        runtime_msi="null"
-        dev_msi="null"
+        runtime_path="null"
+        dev_path="null"
 
         for download_path in ${S3_DOWNLOAD_PATHS}; do
           echo "Checking for installers under ${download_path}"
@@ -124,29 +154,29 @@ runs:
           bucket=$(echo ${download_path} | cut -d/ -f3)
           prefix=$(echo ${download_path} | cut -d/ -f4-)
 
-          if [ "$runtime_msi" = "null" ]; then
+          if [ "$runtime_path" = "null" ]; then
             echo "Checking for runtime installer under s3://${bucket}/${prefix}/"
-            runtime_msi=$(aws s3api list-objects-v2 --bucket "${bucket}" --prefix "${prefix}/" --query 'Contents[].Key' | jq -r 'if type!="array" then [] else . end | sort_by(length) | map(select(endswith("'"${RUNTIME_MSI_FILENAME}"'"))) | .[0]')
-            if [ "$runtime_msi" != "null" ]; then
-              s3_uri="s3://${bucket}/${runtime_msi}"
-              aws s3 cp --no-progress "${s3_uri}" "cerbero/$(basename ${runtime_msi})"
-              echo "runtime-path=cerbero/$(basename ${runtime_msi})" | tee -a $GITHUB_OUTPUT
+            runtime_path=$(aws s3api list-objects-v2 --bucket "${bucket}" --prefix "${prefix}/" --query 'Contents[].Key' | jq -r 'if type!="array" then [] else . end | sort_by(length) | map(select(endswith("'"${RUNTIME_path}"'"))) | .[0]')
+            if [ "$runtime_path" != "null" ]; then
+              s3_uri="s3://${bucket}/${runtime_path}"
+              aws s3 cp --no-progress "${s3_uri}" "cerbero/$(basename ${runtime_path})"
+              echo "runtime-path=cerbero/$(basename ${runtime_path})" | tee -a $GITHUB_OUTPUT
               echo "::notice title=GStreamer Runtime Installer Downloaded From S3::Location: ${s3_uri}"
             fi
           fi
 
-          if [ "$dev_msi" = "null" ]; then
+          if [ "$dev_path" = "null" ]; then
             echo "Checking for development installer under s3://${bucket}/${prefix}/"
-            dev_msi=$(aws s3api list-objects-v2 --bucket "${bucket}" --prefix "${prefix}/" --query 'Contents[].Key' | jq -r 'if type!="array" then [] else . end | sort_by(length) | map(select(endswith("'"${DEV_MSI_FILENAME}"'"))) | .[0]')
-            if [ "$dev_msi" != "null" ]; then
-              s3_uri="s3://${bucket}/${dev_msi}"
-              aws s3 cp --no-progress "${s3_uri}" "cerbero/$(basename ${dev_msi})"
-              echo "dev-path=cerbero/$(basename ${dev_msi})" | tee -a $GITHUB_OUTPUT
+            dev_path=$(aws s3api list-objects-v2 --bucket "${bucket}" --prefix "${prefix}/" --query 'Contents[].Key' | jq -r 'if type!="array" then [] else . end | sort_by(length) | map(select(endswith("'"${DEV_FILENAME}"'"))) | .[0]')
+            if [ "$dev_path" != "null" ]; then
+              s3_uri="s3://${bucket}/${dev_path}"
+              aws s3 cp --no-progress "${s3_uri}" "cerbero/$(basename ${dev_path})"
+              echo "dev-path=cerbero/$(basename ${dev_path})" | tee -a $GITHUB_OUTPUT
               echo "::notice title=GStreamer Development Installer Downloaded From S3::Location: ${s3_uri}"
             fi
           fi
 
-          if [ "$runtime_msi" != "null" ] && [ "$dev_msi" != "null" ]; then
+          if [ "$runtime_path" != "null" ] && [ "$dev_path" != "null" ]; then
             break
           fi
         done
@@ -170,28 +200,40 @@ runs:
     - id: upload-packages
       if: ${{ steps.build-packages.outcome == 'success' && inputs.s3-upload-path }}
       name: Upload newly-built GStreamer installers to S3
-      shell: msys2 -eo pipefail {0}
+      shell: ${{ runner.os == 'Windows' && 'msys2 -eo pipefail {0}' || 'bash' }}
       working-directory: cerbero
       env:
-        RUNTIME_MSI_FILENAME: ${{ steps.version-info.outputs.runtime-msi-filename }}
-        DEV_MSI_FILENAME: ${{ steps.version-info.outputs.dev-msi-filename }}
+        RUNTIME_FILENAME: ${{ steps.version-info.outputs.runtime-filename }}
+        DEV_FILENAME: ${{ steps.version-info.outputs.dev-filename }}
       run: |
         echo "::group::Upload packages"
 
-        upload_path="${{ inputs.s3-upload-path }}/${RUNTIME_MSI_FILENAME}"
+        upload_path="${{ inputs.s3-upload-path }}/${RUNTIME_FILENAME}"
         aws s3 cp --no-progress "$(cygpath -u '${{ steps.build-packages.outputs.runtime-installer-path }}')" "${upload_path}"
         echo "::notice title=GStreamer Runtime Installer Uploaded to S3::Location: ${upload_path}"
-        echo "runtime-msi=${upload_path}" | tee -a $GITHUB_OUTPUT
 
-        upload_path="${{ inputs.s3-upload-path }}/${DEV_MSI_FILENAME}"
+        upload_path="${{ inputs.s3-upload-path }}/${DEV_FILENAME}"
         aws s3 cp --no-progress "$(cygpath -u '${{ steps.build-packages.outputs.devel-installer-path }}')" "${upload_path}"
         echo "::notice title=GStreamer Development Installer Uploaded to S3::Location: ${upload_path}"
-        echo "dev-msi=${upload_path}" | tee -a $GITHUB_OUTPUT
 
         echo "::endgroup::"
 
+    - name: Upload runtime artifact
+      if: ${{ steps.build-packages.outcome == 'success' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.version-info.outputs.runtime-filename }}
+        path: ${{ steps.build-packages.outputs.runtime-installer-path }}
+
+    - name: Upload development artifact
+      if: ${{ steps.build-packages.outcome == 'success' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ steps.version-info.outputs.dev-filename }}
+        path: ${{ steps.build-packages.outputs.devel-installer-path }}
+
     - id: select-path
-      shell: msys2 -eo pipefail {0}
+      shell: ${{ runner.os == 'Windows' && 'msys2 -eo pipefail {0}' || 'bash' }}
       env:
         RUNTIME_PATH: ${{ steps.build-packages.outputs.runtime-installer-path || steps.check-installer-exists.outputs.runtime-path }}
         DEV_PATH: ${{ steps.build-packages.outputs.devel-installer-path || steps.check-installer-exists.outputs.dev-path }}
@@ -199,7 +241,7 @@ runs:
         echo "runtime-installer-path=${RUNTIME_PATH}" | tee -a $GITHUB_OUTPUT
         echo "development-installer-path=${DEV_PATH}" | tee -a $GITHUB_OUTPUT
 
-      # Install the gstreamer MSIs
+      # Install the gstreamer packages
     - id: install
       name: Install GStreamer on Windows
       uses: ./.github/actions/install-gstreamer

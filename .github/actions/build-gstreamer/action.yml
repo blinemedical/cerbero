@@ -40,15 +40,15 @@ outputs:
     value: ${{ steps.cerbero-config.outputs.version }}
   runtime-installer-path:
     description: 'Location of the GStreamer runtime installer'
-    value: ${{ steps.build-packages.outputs.runtime-msi }}
+    value: ${{ steps.build-packages.outputs.runtime-file }}
   devel-installer-path:
     description: 'Location of the GStreamer development installer'
-    value: ${{ steps.build-packages.outputs.dev-msi }}
+    value: ${{ steps.build-packages.outputs.dev-file }}
 runs:
   using: "composite"
   steps:
     - if: ${{ inputs.bootstrap-system == 'true' }}
-      shell: msys2 -eo pipefail {0}
+      shell: ${{ runner.os == 'Windows' && 'msys2 -eo pipefail {0}' || 'bash' }}
       working-directory: cerbero
       run: |
         # Bootstrap Windows
@@ -56,7 +56,7 @@ runs:
 
     - id: cerbero-config
       working-directory: cerbero
-      shell: msys2 -eo pipefail {0}
+      shell: ${{ runner.os == 'Windows' && 'msys2 -eo pipefail {0}' || 'bash' }}
       env:
         CERBERO_PATH: cerbero
         CERBERO_HOME: cerbero-build
@@ -73,13 +73,19 @@ runs:
 
         echo "cerbero-home=${CERBERO_PATH}\\${CERBERO_HOME}" >> $GITHUB_OUTPUT
         echo "cerbero-sources=${CERBERO_PATH}\\${CERBERO_SOURCES}" >> $GITHUB_OUTPUT
-        echo "full-log-path=$(cygpath -au .)/${CERBERO_HOME}/logs" >> $GITHUB_OUTPUT
 
-        pwd_native=$(cygpath -am .)
+        if [ "${{ runner.os }}" == "Windows" ]; then
+          echo "full-log-path=$(cygpath -au .)/${CERBERO_HOME}/logs" >> $GITHUB_OUTPUT
+          pwd_native=$(cygpath -am .)
+        else
+          echo "full-log-path=$(pwd)/${CERBERO_HOME}/logs" >> $GITHUB_OUTPUT
+          pwd_native=$(pwd)
+        fi
+
         echo "home_dir = \"${pwd_native}/${CERBERO_HOME}\"" > localconf.cbc
         echo "local_sources = \"${pwd_native}/${CERBERO_SOURCES}\"" >> localconf.cbc
         echo "vs_install_version = \"vs17\"" >> localconf.cbc
-        echo "num_of_cpus = ${NUMBER_OF_PROCESSORS}" >> localconf.cbc
+        echo "num_of_cpus = ${NUMBER_OF_PROCESSORS:-$(nproc --all)}" >> localconf.cbc
         echo "package_origin = \"${CERBERO_PACKAGE_ORIGIN}\"" >> localconf.cbc
 
         # Handle custom gst-plugins-rs provider
@@ -123,7 +129,7 @@ runs:
           ${{ runner.os }}-cerbero-deps-${{ steps.cerbero-config.outputs.version }}-${{ steps.cerbero-config.outputs.cerbero-sha }}-${{ steps.cerbero-config.outputs.config-hash }}-
 
     - if: ${{ steps.restore-cerbero-deps-cache.outputs.cache-matched-key }}
-      shell: msys2 -eo pipefail {0}
+      shell: ${{ runner.os == 'Windows' && 'msys2 -eo pipefail {0}' || 'bash' }}
       run: |
         # Restore Cerbero dependencies
         deps_file='${{ steps.cerbero-config.outputs.cerbero-home }}\cerbero-deps.tar.xz'
@@ -138,9 +144,9 @@ runs:
         ls -l '${{ steps.cerbero-config.outputs.cerbero-home }}'
         echo "::endgroup::"
 
-    - id: bootstrap-cerbero
+    - id: build-gstreamer-deps
       working-directory: cerbero
-      shell: msys2 -eo pipefail {0}
+      shell: ${{ runner.os == 'Windows' && 'msys2 -eo pipefail {0}' || 'bash' }}
       env:
         CI_PROJECT_NAME: cerbero
         LOG_PATH: ${{ steps.cerbero-config.outputs.full-log-path }}
@@ -173,13 +179,13 @@ runs:
         group_cmd "$CERBERO $CERBERO_ARGS build --offline $more_deps" | tee -a "${LOG_PATH}/3_build-deps.log"
         group_cmd "$CERBERO $CERBERO_ARGS gen-cache" | tee "${LOG_PATH}/4_cache.log"
 
-    - if: ${{ steps.bootstrap-cerbero.outcome == 'success' && ! steps.restore-cerbero-sources-cache.outputs.cache-hit }}
+    - if: ${{ steps.build-gstreamer-deps.outcome == 'success' && ! steps.restore-cerbero-sources-cache.outputs.cache-hit }}
       uses: actions/cache/save@v4
       with:
         path: ${{ steps.cerbero-config.outputs.cerbero-sources }}
         key: ${{ steps.restore-cerbero-sources-cache.outputs.cache-primary-key }}
 
-    - if: ${{ steps.bootstrap-cerbero.outcome == 'success' && ! steps.restore-cerbero-deps-cache.outputs.cache-hit }}
+    - if: ${{ steps.build-gstreamer-deps.outcome == 'success' && ! steps.restore-cerbero-deps-cache.outputs.cache-hit }}
       uses: actions/cache/save@v4
       with:
         path: ${{ steps.cerbero-config.outputs.cerbero-home }}\cerbero-deps.tar.xz
@@ -187,32 +193,43 @@ runs:
 
     - id: build-packages
       working-directory: cerbero
-      shell: msys2 -eo pipefail {0}
+      shell: ${{ runner.os == 'Windows' && 'msys2 -eo pipefail {0}' || 'bash' }}
       env:
         CI_PROJECT_NAME: cerbero
         LOG_PATH: ${{ steps.cerbero-config.outputs.full-log-path }}
       run: |
         mkdir -p "${LOG_PATH}"
-        cmd="$CERBERO $CERBERO_ARGS package --offline ${CERBERO_PACKAGE_ARGS} -o \"$(cygpath -am .)\" gstreamer-1.0"
+
+        if [ "${{ runner.os }}" == "Windows" ]; then
+          cmd="$CERBERO $CERBERO_ARGS package --offline ${CERBERO_PACKAGE_ARGS} -o \"$(cygpath -am .)\" gstreamer-1.0"
+        else
+          cmd="$CERBERO $CERBERO_ARGS package --offline ${CERBERO_PACKAGE_ARGS} -o \"$(pwd)\" gstreamer-1.0"
+        fi
+
         echo "::group::$cmd"
-        eval $cmd | tee "${LOG_PATH}/package.log"
+        eval $cmd | tee "${LOG_PATH}/5_package.log"
         echo "::endgroup::"
 
-        find ~+ -maxdepth 1 -name 'gstreamer-1.0-msvc*.msi' -exec sh -c 'echo runtime-msi=$(cygpath -aw "{}") >> $GITHUB_OUTPUT' \;
-        find ~+ -maxdepth 1 -name 'gstreamer-1.0-devel*.msi' -exec sh -c 'echo dev-msi=$(cygpath -aw "{}") >> $GITHUB_OUTPUT' \;
+        if [ "${{ runner.os }}" == "Windows" ]; then
+          find ~+ -maxdepth 1 -name 'gstreamer-1.0-msvc*.msi' -exec sh -c 'echo runtime-file=$(cygpath -aw "{}") >> $GITHUB_OUTPUT' \;
+          find ~+ -maxdepth 1 -name 'gstreamer-1.0-devel*.msi' -exec sh -c 'echo dev-file=$(cygpath -aw "{}") >> $GITHUB_OUTPUT' \;
+        else
+          >&2 echo "Error: This action is only supported on Windows at this time; pull requests welcome!"
+          exit 1
+        fi
 
     - name: Annotate workflow run with GStreamer version
-      shell: msys2 -eo pipefail {0}
+      shell: ${{ runner.os == 'Windows' && 'msys2 -eo pipefail {0}' || 'bash' }}
       run: |
         echo "::notice title=Built GStreamer version ${{ steps.cerbero-config.outputs.version }}::Created installer with Cerbero short sha ${{ steps.cerbero-config.outputs.cerbero-sha }}"
 
     - uses: actions/upload-artifact@v4
-      if: ${{ steps.build-packages.outputs.runtime-msi || steps.build-packages.outputs.dev-msi }}
+      if: ${{ steps.build-packages.outputs.runtime-file || steps.build-packages.outputs.dev-file }}
       with:
         name: GStreamer Installers
         path: |
-          ${{ steps.build-packages.outputs.runtime-msi }}
-          ${{ steps.build-packages.outputs.dev-msi }}
+          ${{ steps.build-packages.outputs.runtime-file }}
+          ${{ steps.build-packages.outputs.dev-file }}
 
     - name: Upload logs
       uses: actions/upload-artifact@v4
@@ -220,3 +237,10 @@ runs:
       with:
         name: cerbero-logs
         path: ${{ steps.cerbero-config.outputs.cerbero-home }}\logs
+
+    - name: Upload builddir on build failure
+      uses: actions/upload-artifact@v4
+      if: ${{ always() && steps.build-packages.outcome != 'success' }}
+      with:
+        name: build-gstreamer-deps
+        path: ${{ steps.cerbero-config.outputs.cerbero-home }}
