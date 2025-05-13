@@ -18,9 +18,9 @@ on:
         required: false
         type: choice
         options:
-          - '["floor-to-ceiling-windows-latest-runner"]'
+          - '["windows-2022-16core"]'
           - '["self-hosted", "Windows", "X64", "cerbero"]'
-        default: '["floor-to-ceiling-windows-latest-runner"]'
+        default: '["windows-2022-16core"]'
       force-build:
         description: 'Force the build'
         required: false
@@ -35,7 +35,7 @@ on:
 jobs:
   build:
     name: Build GStreamer Windows - ${{ (contains(inputs.runner, 'GitHub-hosted') || inputs.runner == '') && 'GitHub-hosted' || 'Self-hosted' }}
-    runs-on: ${{ fromJSON(inputs.runner || '["floor-to-ceiling-windows-latest-runner"]') }}
+    runs-on: ${{ fromJSON(inputs.runner || '["windows-2022-16core"]') }}
     steps:
       - name: Get GStreamer installer S3 prefix
         id: s3-prefix
