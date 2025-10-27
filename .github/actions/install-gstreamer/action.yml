@@ -1,17 +1,30 @@
-name: Install GStreamer with Cerbero on Windows
-description: Installs the GStreamer MSIs either from the URLs or local paths
+name: Install GStreamer from Packages
+description: Installs the GStreamer using packages at either the URLs or local paths
 inputs:
+  version:
+    description: 'GStreamer version to install (ignores url and path variables)'
+    required: false
+  version-ref:
+    description: 'GStreamer version ref to install (required if version is specified)'
+    required: false
+  s3-download-paths:
+    description: 'S3 paths to download from (required if version is specified)'
+    required: false
+  install-development:
+    description: 'Install GStreamer development packages (in addition to runtime)'
+    required: false
+    default: 'true'
   runtime-installer-url:
     description: 'URL of the GStreamer runtime installer'
     required: false
   development-installer-url:
-    description: 'URL of the GStreamer development installer'
+    description: 'URL of the GStreamer development installer (required if install-development)'
     required: false
   runtime-installer-path:
     description: 'Local path of the GStreamer runtime installer'
     required: false
   development-installer-path:
-    description: 'Local path of the GStreamer development installer'
+    description: 'Local path of the GStreamer development installer (required if install-development)'
     required: false
 outputs:
   install-dir:
@@ -27,86 +40,138 @@ outputs:
 runs:
   using: "composite"
   steps:
-    # Mutual exclusive -- either set url or path for each.  Error if both or neither
-    # are set.  If path is set, verify the file exists.
-    - if: ${{ inputs.runtime-installer-url && inputs.runtime-installer-path }}
-      shell: msys2 -eo pipefail {0}
-      run: |
-        echo "Error: Cannot specify both runtime-installer-url and runtime-installer-path"
-        exit 1
-    - if: ${{ inputs.development-installer-url && inputs.development-installer-path }}
-      shell: msys2 -eo pipefail {0}
-      run: |
-        echo "Error: Cannot specify both development-installer-url and development-installer-path"
-        exit 2
-    - if: ${{ !inputs.runtime-installer-url && !inputs.runtime-installer-path }}
-      shell: msys2 -eo pipefail {0}
-      run: |
-        echo "Error: Must specify either runtime-installer-url or runtime-installer-path"
-        exit 3
-    - if: ${{ !inputs.development-installer-url && !inputs.development-installer-path }}
-      shell: msys2 -eo pipefail {0}
-      run: |
-        echo "Error: Must specify either development-installer-url or development-installer-path"
-        exit 4
-    - if: ${{ inputs.runtime-installer-path }}
-      shell: msys2 -eo pipefail {0}
-      run: |
-        if [[ ! -f "${{ inputs.runtime-installer-path }}" ]]; then
-          echo "Error: Runtime installer path does not exist: ${{ inputs.runtime-installer-path }}"
-          exit 5
-        fi
-    - if: ${{ inputs.development-installer-path }}
-      shell: msys2 -eo pipefail {0}
-      run: |
-        if [[ ! -f "${{ inputs.development-installer-path }}" ]]; then
-          echo "Error: Development installer path does not exist: ${{ inputs.development-installer-path }}"
-          exit 6
-        fi
+    - if: runner.os == 'Windows'
+      id: setup-msys2
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: UCRT64
+        path-type: inherit
+        release: false
 
-    # If the URL is provided, download the MSI, set path.
-    # This will error out if the file is missing.
-    - if: ${{ !inputs.runtime-installer-path }}
-      id: download-runtime
-      name: Download GStreamer Runtime MSI
-      shell: powershell
+    - if: ${{ runner.os != 'Windows' }}
+      shell: msys2 -eo pipefail {0}
       run: |
-        $msi_path = "$(( $pwd ))\gstreamer-runtime.msi"
-        Invoke-WebRequest -Uri "${{ inputs.runtime-installer-url }}" -OutFile "$msi_path"
-        echo "msi-path=$msi_path" | Out-File -FilePath $Env:GITHUB_OUTPUT -Append -Encoding utf8
-        echo "::notice title=GStreamer runtime installer downloaded::Downloaded GStreamer runtime installer from ${{ inputs.runtime-installer-url }}"
-    - if: ${{ !inputs.development-installer-path }}
-      id: download-development
-      name: Download GStreamer Development MSI
-      shell: powershell
-      run: |
-        $msi_path = "$(( $pwd ))\gstreamer-development.msi"
-        Invoke-WebRequest -Uri "${{ inputs.development-installer-url }}" -OutFile "$msi_path"
-        echo "msi-path=$msi_path" | Out-File -FilePath $Env:GITHUB_OUTPUT -Append -Encoding utf8
-        echo "::notice title=GStreamer development installer downloaded::Downloaded GStreamer development installer from ${{ inputs.development-installer-url }}"  
+        echo "::error This action is only supported on Windows at this time; pull requests welcome!"
+        exit 7
 
-    # Set the local paths favoring if the download happened
-    - id: msi-path
-      shell: powershell
+    - name: Determine installation method(s) from inputs and output path(s) to install files
+      id: resolve
+      shell: ${{ runner.os == 'Windows' && 'msys2 -eo pipefail {0}' || 'bash' }}
+      env:
+        S3_DOWNLOAD_PATHS: ${{ inputs.s3-download-paths }}
       run: |
-        # If the download happened, use the downloaded path, else use the input path
-        $runtime = "${{ steps.download-development.outputs.msi-path }}"
-        if ($runtime -eq "") {
-          $runtime = "${{ inputs.runtime-installer-path }}"
+        runner_os="${{ runner.os }}"
+        version="${{ inputs.version}}"
+        version_ref="${{ inputs.version-ref }}"
+        include_development="${{ inputs.install-development }}"
+        runtime_installer_url="${{ inputs.runtime-installer-url }}"
+        development_installer_url="${{ inputs.development-installer-url }}"
+        runtime_installer_path="${{ inputs.runtime-installer-path }}"
+        development_installer_path="${{ inputs.development-installer-path }}"
+
+        # output vars for later steps
+        runtime_path=""
+        development_path=""
+        result=0
+
+        s3_find_installer() {
+          local paths="${1:?Download paths are required as an array}"
+          local version="${2:?Version is required}"
+          local uri=""
+
+          for download_path in ${paths}; do
+            local bucket=$(echo ${download_path} | cut -d/ -f3)
+            local prefix=$(echo ${download_path} | cut -d/ -f4-)
+
+            file_path=$(aws s3api list-objects-v2 --bucket "${bucket}" --prefix "${prefix}/" --query 'sort_by(Contents, &LastModified)[].Key' | jq -r 'if type!="array" then [] else . end | sort_by(length) | map(select(contains("'"${version}"'"))) | .[0]')
+            if [ "null" != "${file_path}" ]; then
+              uri="s3://${bucket}/${file_path}"
+            fi
+          done
+          echo "${uri}"
         }
-        $development = "${{ steps.download-development.outputs.msi-path }}"
-        if ($development -eq "") {
-          $development = "${{ inputs.development-installer-path }}"
-        }
-        echo "runtime=$runtime" | Out-File -FilePath $Env:GITHUB_OUTPUT -Append -Encoding utf8
-        echo "development=$development" | Out-File -FilePath $Env:GITHUB_OUTPUT -Append -Encoding utf8
 
-    - name: Install GStreamer
+        download_installer() {
+          local uri="${1}"
+          local file_name=$(echo "${uri}" | rev | cut -d/ -f1 | rev)
+          local local_path="$(pwd)/${file_name}"
+          local result=1
+
+          if [ -n "${uri}" ]; then
+            if [ "$(echo "${1}" | cut -c1-5)" = "s3://" ]; then
+              aws s3 cp --no-progress "${uri}" "${local_path}" &>> download.log
+              result=$?
+            else
+              curl -L -O "${uri}" -o "$local_path" &>> download.log
+              result=$?
+            fi
+          fi
+
+          if [ $result -eq 0 ]; then
+            echo "${local_path}"
+          else
+            echo ""
+          fi
+        }
+
+        version_prefix=""
+        if [ ${runner_os} == 'Windows' ]; then
+          version_prefix="msvc-x86_64-"
+        fi
+
+        version="${version_prefix}${version}"
+        if [ -n "${version_ref}" ]; then
+          version="${version}-${version_ref}"
+        fi
+
+        if [ -f "${runtime_installer_path}" ]; then
+          runtime_path="${runtime_installer_path}"
+        elif [ -n "${runtime_installer_url}" ]; then
+          runtime_path=$(download_installer "${runtime_installer_url}")
+        else
+          runtime_installer_url=$(s3_find_installer "${S3_DOWNLOAD_PATHS[@]}" "${version}")
+          runtime_path=$(download_installer "${runtime_installer_url}")
+        fi
+
+        if [ -n "${runtime_path}" ]; then
+            if [ ${runner_os} == 'Windows' ]; then
+              runtime_path=$(cygpath -aw "${runtime_path}")
+            fi
+          echo "runtime=$runtime_path" | tee -a $GITHUB_OUTPUT
+        else
+          echo "::error No GStreamer runtime installer found"
+          result=1
+        fi
+
+        if [ "true" == "${include_development}" ]; then
+          if [ -f "${development_installer_path}" ]; then
+            development_path="${development_installer_path}"
+          elif [ -n "${development_installer_url}" ]; then
+            development_path=$(download_installer "${development_installer_url}")
+          else
+            development_installer_url=$(s3_find_installer "${S3_DOWNLOAD_PATHS[@]}" "devel-${version}")
+            development_path=$(download_installer "${development_installer_url}")
+          fi
+
+          if [ -n "${development_path}" ]; then
+            if [ ${runner_os} == 'Windows' ]; then
+              development_path=$(cygpath -aw "${development_path}")
+            fi
+            echo "development=$development_path" | tee -a $GITHUB_OUTPUT
+          else
+            echo "::error No GStreamer development installer found"
+            result=1
+          fi
+        fi
+        exit $result
+
+    - if: ${{ runner.os == 'Windows' }}
+      name: Install GStreamer
       id: install-gstreamer
       shell: powershell
       env:
-        RUNTIME_MSI: ${{ steps.msi-path.outputs.runtime }}
-        DEVELOPMENT_MSI: ${{ steps.msi-path.outputs.development }}
+        RUNTIME_MSI: ${{ steps.resolve.outputs.runtime }}
+        DEVELOPMENT_MSI: ${{ steps.resolve.outputs.development }}
       run: |
         $GSTREAMER_INSTALL_DIR="${{ runner.temp }}\gstreamer"
         $GSTREAMER_ROOT="$GSTREAMER_INSTALL_DIR\1.0\msvc_x86_64"
@@ -118,12 +183,28 @@ runs:
         echo "gstreamer-install-dir=$GSTREAMER_INSTALL_DIR" | Out-File -FilePath $Env:GITHUB_OUTPUT -Append -Encoding utf8
         echo "gstreamer-plugin-dir=$GSTREAMER_ROOT" | Out-File -FilePath $Env:GITHUB_OUTPUT -Append -Encoding utf8
 
-        if ($RUNTIME_MSI) {
-          echo "Installing GStreamer Runtime"
-          Start-Process msiexec -ArgumentList '/i `"$RUNTIME_MSI`" ADDLOCAL=ALL INSTALLDIR=`"$GSTREAMER_INSTALL_DIR`" /qn' -NoNewWindow -PassThru -Wait
+        Write-Output "::notice Using runtime: $Env:RUNTIME_MSI"
+        Write-Output "::notice Using development: $Env:DEVELOPMENT_MSI"
 
-          if ($DEVELOPMENT_MSI) {
-            echo "Installing GStreamer Development"
-            Start-Process msiexec -ArgumentList '/i `"$DEVELOPMENT_MSI`" ADDLOCAL=ALL INSTALLDIR=`"$GSTREAMER_INSTALL_DIR`" /qn' -NoNewWindow -PassThru -Wait
+        if (Test-Path -Path "$Env:RUNTIME_MSI") {
+          Write-Output "::notice title=Installing GStreamer Runtime"
+          $proc = Start-Process msiexec -ArgumentList "/i `"$Env:RUNTIME_MSI`" ADDLOCAL=ALL INSTALLDIR=`"$GSTREAMER_INSTALL_DIR`" /qn /l*vx runtime-install.log" -NoNewWindow -PassThru -Wait
+          if ($proc.ExitCode -ne 0) {
+            Write-Output "::error title=GStreamer Runtime installation failed with exit code $($proc.ExitCode)"
+            Get-Content runtime-install.log
+            exit $proc.ExitCode
           }
+
+          if (Test-Path -Path "$Env:DEVELOPMENT_MSI") {
+            Write-Output "::notice title=Installing GStreamer Development"
+            $proc = Start-Process msiexec -ArgumentList "/i `"$Env:DEVELOPMENT_MSI`" ADDLOCAL=ALL INSTALLDIR=`"$GSTREAMER_INSTALL_DIR`" /qn /l*vx development-install.log" -NoNewWindow -PassThru -Wait
+            if ($proc.ExitCode -ne 0) {
+              Write-Output "::error title=GStreamer Development installation failed with exit code $($proc.ExitCode)"
+              Get-Content development-install.log
+              exit $proc.ExitCode
+            }
+          }
+        } else {
+          Write-Output "::error title=GStreamer is not installed."
+          exit 999
         }
