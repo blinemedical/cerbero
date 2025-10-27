@@ -63,7 +63,8 @@ runs:
       uses: actions/setup-python@v5
       with:
         # cerbero requires >=3.10
-        python-version: '>=3.10'
+        # 3.14 breaks cerbero without https://gitlab.freedesktop.org/gstreamer/cerbero/-/commit/4b2072e5c80c8f84a3db65fa2235057b6d96e5a2
+        python-version: '>=3.10 <3.14'
 
     - if: runner.os == 'Windows'
       id: setup-msys2
